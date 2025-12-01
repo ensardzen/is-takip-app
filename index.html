@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İş Günü Takip Sistemi</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        /* Proje genelinde Inter fontunu kullan */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* Hafif gri arka plan */
+        }
+        /* Özel kaydırma çubuğu stili */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: #90cdf4; /* Mavi tonu */
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background-color: #edf2f7; /* Açık gri */
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+    <div id="app" class="max-w-xl mx-auto">
+        <!-- Mesaj Kutusu (Toast) -->
+        <div id="message-box" class="fixed top-4 left-1/2 transform -translate-x-1/2 transition-opacity duration-300 opacity-0 pointer-events-none z-50"></div>
+
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 border-b-4 border-blue-600 pb-2">İş Günü Takip Sistemi</h1>
+        <p class="text-xs text-gray-500 mb-6">
+            Kullanıcı ID: <span id="user-id-display" class="font-mono text-xs">Yükleniyor...</span>
+        </p>
+
+        <!-- Firebase Bağlantı Durumu Uyarısı -->
+        <div id="local-mode-alert" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-6" role="alert">
+            <p class="font-bold">Bağlantı Hatası! (YEREL MOD)</p>
+            <p class="text-sm">Veritabanı bağlantı ayarları eksik. Kayıtlar YALNIZCA bu oturum için geçerlidir.</p>
+        </div>
+        
+        <!-- Günlük Ücret Ayarı -->
+        <div class="bg-white p-6 rounded-xl shadow-xl mb-8 border border-gray-200">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-yellow-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.22a2 2 0 0 1-1.4 1.4L4.9 7.1a2 2 0 0 0-1.4 1.4v.44a2 2 0 0 0 2 2h.22a2 2 0 0 1 1.4 1.4L7.1 19.1a2 2 0 0 0 1.4 1.4h.44a2 2 0 0 0 2-2v-.22a2 2 0 0 1 1.4-1.4l1.83-1.83a2 2 0 0 0 1.4-1.4v-.44a2 2 0 0 0-2-2h-.22a2 2 0 0 1-1.4-1.4L19.1 4.9a2 2 0 0 0-1.4-1.4h-.44a2 2 0 0 0-2 2v.22a2 2 0 0 1-1.4 1.4L12.22 2z"/><circle cx="12" cy="12" r="3"/></svg>
+                Günlük Tam Ücret Ayarı
+            </h2>
+            <input
+                type="number"
+                id="daily-wage-input"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 mb-3 transition duration-150"
+                placeholder="Günlük Tam Ücret (TL)"
+                value="800"
+            />
+            <button 
+                id="save-wage-button"
+                class="w-full py-3 bg-yellow-600 text-white font-bold rounded-lg hover:bg-yellow-700 transition duration-150 shadow-md transform hover:scale-[1.01]"
+                disabled
+            >
+                Ücreti Kaydet
+            </button>
+            <p class="text-sm text-gray-600 mt-4 pt-3 border-t border-gray-100">
+                Kayıtlı Ücret: <span id="current-wage-display" class="font-semibold text-lg text-green-700">0.00 TL</span>
+            </p>
+        </div>
+
+        <!-- Toplam Kartlar -->
+        <div class="flex flex-col sm:flex-row justify-between space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+            <div class="flex-1 p-5 rounded-xl shadow-xl bg-blue-600 text-white flex flex-col items-start transform transition duration-300 hover:scale-[1.03]">
+                <svg class="w-6 h-6 mb-2 opacity-80" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <p class="text-xs font-semibold uppercase opacity-90">Toplam Gün Karşılığı</p>
+                <p id="total-hours-display" class="text-3xl font-extrabold mt-1">0.0 Gün</p>
+            </div>
+            <div class="flex-1 p-5 rounded-xl shadow-xl bg-green-600 text-white flex flex-col items-start transform transition duration-300 hover:scale-[1.03]">
+                <svg class="w-6 h-6 mb-2 opacity-80" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <p class="text-xs font-semibold uppercase opacity-90">Tahmini Toplam Kazanç</p>
+                <p id="total-payment-display" class="text-3xl font-extrabold mt-1">0.00 TL</p>
+            </div>
+        </div>
+
+        <!-- Çalışma Geçmişi Grafiği -->
+        <div id="chart-container" class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gray-200">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                Son Çalışma Yoğunluğu (7 Gün)
+            </h2>
+            <div id="work-chart-bars">
+                <!-- Grafik barları buraya JS ile eklenecek -->
+            </div>
+        </div>
+
+
+        <!-- Yeni Giriş Formu -->
+        <div class="bg-white p-6 rounded-xl shadow-xl mb-8 border border-gray-200">
+          <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+             <svg class="w-5 h-5 mr-2 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+             Yeni Gün Kaydı
+          </h2>
+          
+          <label for="date-input" class="block text-sm font-medium text-gray-700 mb-1">Tarih:</label>
+          <input
+            type="date"
+            id="date-input"
+            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 mb-4 transition duration-150"
+            value=""
+          />
+
+          <label class="block text-sm font-medium text-gray-700 mb-2">Çalışma Durumu:</label>
+          <div id="status-radio-container" class="grid grid-cols-3 gap-3 mb-4">
+            <!-- Durum butonları buraya JS ile eklenecek -->
+          </div>
+          
+          <p class="text-sm font-medium text-gray-700 mb-4">Tahmini Kazanç: <span id="entry-payment-display" class="font-bold text-blue-600 text-base">0.00 TL</span></p>
+
+          <button 
+            id="add-entry-button"
+            class="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg shadow-blue-400/50 transform hover:scale-[1.01]"
+            disabled
+          >
+            <svg class="w-5 h-5 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.6-8.25"/><path d="M16.5 7.5l-6.5 6.5-3-3"/></svg>
+            Girişi Kaydet
+          </button>
+        </div>
+
+        <!-- Kayıtlı Girişler -->
+        <div class="bg-white p-6 rounded-xl shadow-xl border border-gray-200">
+          <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Kayıtlı Girişler (<span id="entry-count-display">0</span>)
+          </h2>
+          <div id="entry-list-container" class="divide-y divide-gray-100 max-h-96 overflow-y-auto custom-scroll">
+            <!-- Kayıtlar buraya JS ile eklenecek -->
+          </div>
+        </div>
+
+        <p class="text-center text-xs text-gray-400 mt-6 pt-4 border-t border-gray-200">© İş Takip Sistemi - v2.0</p>
+    </div>
+
+    <!-- Firebase CDN İthalatları -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // = GLOBAL SABİTLER =
+        const HOURS_PER_FULL_DAY = 8;
+        const DEFAULT_DAILY_WAGE = 800;
+        const COLLECTION_NAME = 'work_entries';
+        const PREFS_DOC_PATH = 'preferences'; 
+        const PREFS_DOC_ID = 'settings'; 
+        const statusOptions = [
+            { label: 'Tam Gün', value: 'full' },
+            { label: 'Yarım Gün', value: 'half' },
+            { label: 'Ücretli İzin', value: 'paid_absence' },
+        ];
+        
+        // Canvas Global Değişkenleri
+        const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const APP_ID = rawAppId.replace(/\//g, '_'); 
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {}; 
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' 
+            ? __initial_auth_token 
+            : null;
+
+        const IS_FIREBASE_CONFIG_VALID = Object.keys(firebaseConfig).length > 0;
+
+        // = UYGULAMA STATE =
+        const state = {
+            db: null,
+            auth: null,
+            userId: null,
+            isAuthReady: false,
+            hourlyWage: DEFAULT_DAILY_WAGE / HOURS_PER_FULL_DAY,
+            dailyWageInput: DEFAULT_DAILY_WAGE.toString(),
+            entries: [], // { id, date, status, duration, hourlyWage }
+            currentEntry: {
+                date: new Date().toISOString().split('T')[0],
+                status: 'full',
+            }
+        };
+
+        // = YARDIMCI FONKSİYONLAR =
+        const getDateId = (date) => new Date(date).toISOString().split('T')[0];
+
+        const getDurationByStatus = (status) => {
+            switch (status) {
+                case 'full':
+                case 'paid_absence':
+                    return HOURS_PER_FULL_DAY; 
+                case 'half':
+                    return HOURS_PER_FULL_DAY / 2;
+                default:
+                    return 0;
+            }
+        };
+
+        const showMessage = (text, type = 'success') => {
+            const box = document.getElementById('message-box');
+            box.innerHTML = text;
+            box.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-lg z-50 transition-all duration-300 ${type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white font-semibold`;
+            box.style.opacity = 1;
+            box.style.pointerEvents = 'auto';
+
+            setTimeout(() => {
+                box.style.opacity = 0;
+                box.style.pointerEvents = 'none';
+            }, 3000); 
+        };
+
+        // = ANA RENDER FONKSİYONU =
+        const renderApp = () => {
+            // --- Genel Durum ve Inputlar ---
+            document.getElementById('date-input').value = state.currentEntry.date;
+            document.getElementById('daily-wage-input').value = state.dailyWageInput;
+            
+            const isButtonEnabled = state.isAuthReady && state.userId;
+            document.getElementById('save-wage-button').disabled = !isButtonEnabled;
+            document.getElementById('add-entry-button').disabled = !isButtonEnabled;
+            
+            const currentDailyWage = state.hourlyWage * HOURS_PER_FULL_DAY;
+            document.getElementById('current-wage-display').textContent = `${currentDailyWage.toFixed(2)} TL`;
+            
+            // --- User ID ve Local Mod Uyarısı ---
+            document.getElementById('user-id-display').textContent = state.userId === 'LOCAL_USER_MODE' ? "YEREL MOD" : state.userId || "Kimlik Doğrulanıyor...";
+            if (!IS_FIREBASE_CONFIG_VALID) {
+                document.getElementById('local-mode-alert').classList.remove('hidden');
+            } else {
+                document.getElementById('local-mode-alert').classList.add('hidden');
+            }
+
+
+            // --- Toplam Hesaplamalar ---
+            const totals = state.entries.reduce((acc, entry) => {
+                const wage = entry.hourlyWage > 0 ? entry.hourlyWage : state.hourlyWage;
+                const hours = entry.duration;
+                const payment = hours * wage;
+                acc.totalHours += hours;
+                acc.totalPayment += payment;
+                return acc;
+            }, { totalHours: 0, totalPayment: 0 });
+
+            document.getElementById('total-hours-display').textContent = `${(totals.totalHours / HOURS_PER_FULL_DAY).toFixed(1)} Gün`;
+            document.getElementById('total-payment-display').textContent = `${totals.totalPayment.toFixed(2)} TL`;
+            document.getElementById('entry-count-display').textContent = state.entries.length;
+
+            // --- Yeni Giriş Tahmini Kazanç ---
+            const currentEntryDuration = getDurationByStatus(state.currentEntry.status);
+            document.getElementById('entry-payment-display').textContent = `${(currentEntryDuration * state.hourlyWage).toFixed(2)} TL`;
+
+
+            // --- Durum Butonları ---
+            const statusContainer = document.getElementById('status-radio-container');
+            statusContainer.innerHTML = statusOptions.map(option => {
+                const isSelected = state.currentEntry.status === option.value;
+                return `
+                    <button
+                        type="button" 
+                        data-status="${option.value}"
+                        class="w-full py-3 px-1 text-sm font-semibold rounded-lg border transition duration-150 cursor-pointer text-center 
+                        ${isSelected 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-300/50' 
+                            : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400'
+                        }"
+                    >
+                        ${option.label}
+                    </button>
+                `;
+            }).join('');
+
+            // Yeni butonlara event listener ekle (Event Delegation kullanılıyor)
+            statusContainer.onclick = (e) => {
+                const button = e.target.closest('button');
+                if (button && button.dataset.status) {
+                    state.currentEntry.status = button.dataset.status;
+                    renderApp(); // State değiştiği için yeniden render
+                }
+            };
+            
+
+            // --- Kayıt Listesi ---
+            const entryListContainer = document.getElementById('entry-list-container');
+            if (state.entries.length === 0) {
+                entryListContainer.innerHTML = '<p class="text-center text-gray-500 py-6">Henüz kayıtlı giriş yok.</p>';
+            } else {
+                entryListContainer.innerHTML = state.entries.map(entry => {
+                    const hours = entry.duration;
+                    const paymentWage = entry.hourlyWage > 0 ? entry.hourlyWage : state.hourlyWage;
+                    const payment = hours * paymentWage;
+                    const dayEquivalent = hours / HOURS_PER_FULL_DAY; 
+                    const statusText = statusOptions.find(o => o.value === entry.status)?.label || 'Bilinmiyor';
+                    const isPaidAbsence = entry.status === 'paid_absence';
+                    
+                    return `
+                        <div class="flex justify-between items-center py-4 border-b border-gray-100 hover:bg-blue-50/50 transition duration-150 rounded-lg pr-2">
+                            <div class="flex items-center flex-1 min-w-0 ml-2">
+                                <svg class="w-5 h-5 text-blue-500 mr-3 hidden sm:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+                                <div class="flex flex-col">
+                                    <p class="text-base font-semibold text-gray-800 truncate">${entry.date}</p>
+                                    <p class="text-xs font-medium ${isPaidAbsence ? 'text-purple-500' : 'text-gray-500'}">${statusText}</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end mr-4">
+                                <p class="text-base font-bold text-green-600">${dayEquivalent.toFixed(1)} Gün</p>
+                                <p class="text-sm font-medium text-gray-700">${payment.toFixed(2)} TL</p>
+                            </div>
+                            <button 
+                                data-id="${entry.id}"
+                                class="delete-btn p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition duration-150 shadow-sm"
+                                title="Kaydı Sil"
+                            >
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                // Silme butonlarına event listener ekle (Event Delegation)
+                const deleteButtons = entryListContainer.querySelectorAll('.delete-btn');
+                deleteButtons.forEach(btn => {
+                    btn.onclick = (e) => deleteEntry(e.currentTarget.dataset.id);
+                });
+            }
+
+
+            // --- Grafik Alanı (Son 7 Gün) ---
+            const chartContainer = document.getElementById('work-chart-bars');
+            
+            // Son 7 kaydı al ve tarihe göre sırala
+            const sortedEntries = [...state.entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const last7Entries = sortedEntries.slice(-7);
+            
+            if (last7Entries.length === 0) {
+                chartContainer.innerHTML = '<p class="text-center text-gray-500 py-4 text-sm">Görüntülenecek yeterli kayıt yok (Min. 1).</p>';
+                return;
+            }
+
+            const maxDayEquivalent = HOURS_PER_FULL_DAY / HOURS_PER_FULL_DAY; 
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const chartHTML = `<div class="flex justify-between items-end h-32 space-x-2 border-b border-gray-200 pt-4">
+                ${last7Entries.map((entry, index) => {
+                    const dayEquivalent = entry.duration / HOURS_PER_FULL_DAY;
+                    const heightPercentage = (dayEquivalent / maxDayEquivalent) * 100;
+                    
+                    let label = "";
+                    const entryDate = new Date(entry.date + "T00:00:00");
+                    if (entryDate.getTime() === today.getTime()) {
+                        label = "Bugün";
+                    } else {
+                        label = entryDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+                    }
+
+                    return `
+                        <div class="flex flex-col items-center h-full flex-1 min-w-[30px] group">
+                            <div 
+                                class="w-full bg-blue-600 rounded-t-md transition-all duration-500 hover:bg-blue-400 relative"
+                                style="height: ${Math.max(1, heightPercentage)}%;"
+                                title="${entry.date}: ${dayEquivalent.toFixed(1)} Gün"
+                            >
+                                <span class="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-semibold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    ${dayEquivalent.toFixed(1)}
+                                </span>
+                            </div>
+                            <span class="mt-1 text-xs text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                                ${label}
+                            </span>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            <p class="text-right text-xs text-gray-400 mt-2">Maksimum: 1 Tam Gün</p>`;
+            
+            chartContainer.innerHTML = chartHTML;
+
+        };
+
+
+        // = FIREBASE İŞLEMLERİ =
+
+        const loadWage = async () => {
+            if (!state.db || !state.userId || !IS_FIREBASE_CONFIG_VALID) return; 
+            
+            try {
+                const prefsDocRef = doc(state.db, `/artifacts/${APP_ID}/users/${state.userId}/${PREFS_DOC_PATH}`, PREFS_DOC_ID);
+                const docSnap = await getDoc(prefsDocRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.hourlyWage && typeof data.hourlyWage === 'number') {
+                        state.hourlyWage = data.hourlyWage;
+                        state.dailyWageInput = (data.hourlyWage * HOURS_PER_FULL_DAY).toString();
+                        renderApp();
+                    }
+                }
+            } catch (e) {
+                console.error("Ücret ayarı yüklenirken hata:", e);
+            }
+        };
+
+        const setupEntryListener = () => {
+            if (!state.db || !state.userId || !IS_FIREBASE_CONFIG_VALID) return;
+
+            const path = `/artifacts/${APP_ID}/users/${state.userId}/${COLLECTION_NAME}`;
+            const entriesCollectionRef = collection(state.db, path);
+            const q = query(entriesCollectionRef); 
+
+            onSnapshot(q, (snapshot) => {
+                const fetchedEntries = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    const entryDuration = data.duration || getDurationByStatus(data.status);
+                    return {
+                        id: doc.id,
+                        ...data,
+                        duration: entryDuration,
+                        hourlyWage: data.hourlyWage || state.hourlyWage, 
+                    };
+                });
+                
+                // Veriyi istemci tarafında tarihe göre sırala (en yeniyi üste)
+                fetchedEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+                state.entries = fetchedEntries;
+                renderApp(); // Veri değiştiğinde yeniden render
+            }, (err) => {
+                console.error("Firestore veri dinleme hatası:", err);
+                showMessage("Veri yüklenirken bir hata oluştu.", 'error');
+            });
+        };
+
+        const initFirebase = async () => {
+            if (!IS_FIREBASE_CONFIG_VALID) {
+                console.error("Firebase Yapılandırması Boş. Uygulama Yerel Modda Başlatılıyor.");
+                showMessage("Veritabanı bağlantısı kurulamadı. Uygulama sadece yerel (geçici) simülasyon modunda çalışacaktır.", 'error');
+                
+                state.userId = 'LOCAL_USER_MODE'; 
+                state.isAuthReady = true; 
+                renderApp();
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                state.db = getFirestore(app);
+                state.auth = getAuth(app);
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(state.auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(state.auth);
+                }
+                
+                onAuthStateChanged(state.auth, (user) => {
+                    if (user) {
+                        state.userId = user.uid;
+                        loadWage(); // Ücreti yükle
+                        setupEntryListener(); // Dinleyiciyi başlat
+                    } else {
+                        state.userId = null; 
+                    }
+                    state.isAuthReady = true;
+                    renderApp();
+                });
+
+            } catch (e) {
+                console.error("Firebase başlatma hatası:", e);
+                showMessage("Uygulama başlatılırken kritik hata oluştu.", 'error');
+                state.isAuthReady = true;
+                renderApp();
+            }
+        };
+
+        // = KULLANICI ETKİLEŞİMİ İŞLEMCİLERİ =
+
+        const saveDailyWage = async () => {
+            const newDailyWage = parseFloat(document.getElementById('daily-wage-input').value);
+            
+            if (isNaN(newDailyWage) || newDailyWage <= 0) {
+                showMessage("Lütfen geçerli bir pozitif sayı (günlük tam ücret) girin. (Örn: 900)", 'error');
+                return;
+            }
+            
+            const calculatedHourlyWage = newDailyWage / HOURS_PER_FULL_DAY; 
+            state.hourlyWage = calculatedHourlyWage;
+            state.dailyWageInput = newDailyWage.toString();
+            renderApp(); // Yerel state'i güncelle
+
+            if (!state.db || !state.userId || state.userId === 'LOCAL_USER_MODE') {
+                showMessage(`Günlük Tam Ücret ${newDailyWage.toFixed(2)} TL olarak YEREL olarak ayarlandı. Veritabanına kaydedilemedi.`, 'error');
+                return;
+            }
+
+            try {
+                const prefsDocRef = doc(state.db, `/artifacts/${APP_ID}/users/${state.userId}/${PREFS_DOC_PATH}`, PREFS_DOC_ID);
+                await setDoc(prefsDocRef, { hourlyWage: calculatedHourlyWage }, { merge: true });
+                showMessage(`Günlük Tam Ücret ${newDailyWage.toFixed(2)} TL olarak kaydedildi.`);
+            } catch (e) {
+                console.error("Ücret ayarı kaydedilirken hata:", e);
+                showMessage("Ücret kaydedilemedi. Konsolu kontrol edin.", 'error');
+            }
+        };
+
+        const addEntry = async () => {
+            const date = document.getElementById('date-input').value;
+            const status = state.currentEntry.status;
+
+            if (!date || !status) {
+                showMessage("Lütfen Tarih ve Çalışma Durumu alanlarını doldurun.", 'error');
+                return;
+            }
+            
+            const duration = getDurationByStatus(status);
+            const id = getDateId(date);
+
+            const newEntry = {
+                id: id,
+                date: date,
+                status: status,
+                duration: duration, 
+                hourlyWage: state.hourlyWage, 
+                createdAt: serverTimestamp(),
+            };
+            
+            // Aynı tarihe kayıt kontrolü
+            if (state.entries.some(e => e.id === id)) {
+                 showMessage("Bu tarihe ait zaten bir kayıt var. Lütfen önce mevcut kaydı silin.", 'error');
+                 return;
+            }
+
+            if (!state.db || !state.userId || state.userId === 'LOCAL_USER_MODE') {
+                // Yerel modda manuel güncelleme
+                state.entries = [...state.entries, newEntry];
+                state.entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+                state.currentEntry.date = new Date().toISOString().split('T')[0];
+                renderApp();
+                showMessage("Giriş YEREL olarak eklendi. Veritabanına kaydedilemedi.", 'error');
+                return;
+            }
+
+            // Firebase Kayıt
+            try {
+              const entryRef = doc(collection(state.db, `/artifacts/${APP_ID}/users/${state.userId}/${COLLECTION_NAME}`), id);
+              await setDoc(entryRef, newEntry, { merge: false });
+
+              state.currentEntry.date = new Date().toISOString().split('T')[0];
+              renderApp();
+              showMessage("Giriş başarıyla eklendi.");
+
+            } catch (e) {
+              console.error("Giriş eklenirken hata oluştu:", e);
+              showMessage("Giriş eklenirken bir hata oluştu.", 'error');
+            }
+        };
+
+        const deleteEntry = async (id) => {
+            
+            if (!state.db || !state.userId || state.userId === 'LOCAL_USER_MODE') {
+                state.entries = state.entries.filter(e => e.id !== id);
+                renderApp();
+                showMessage("Giriş YEREL olarak silindi. Veritabanı bağlantısı yok.", 'error');
+                return;
+            }
+
+            try {
+                const docRef = doc(state.db, `/artifacts/${APP_ID}/users/${state.userId}/${COLLECTION_NAME}`, id);
+                await deleteDoc(docRef);
+                showMessage("Giriş başarıyla silindi.", 'success');
+            } catch (e) {
+                console.error("Giriş silinirken hata oluştu:", e);
+                showMessage("Giriş silinirken bir hata oluştu. Lütfen konsolu kontrol edin.", 'error');
+            }
+        };
+
+        // = BAŞLANGIÇ AYARLARI =
+        
+        // Input event listener'ları
+        document.addEventListener('DOMContentLoaded', () => {
+            const dateInput = document.getElementById('date-input');
+            const dailyWageInput = document.getElementById('daily-wage-input');
+            
+            // Tarih alanına varsayılan bugünün tarihini ayarla
+            dateInput.value = state.currentEntry.date;
+
+            // Tarih değiştiğinde state'i güncelle
+            dateInput.onchange = (e) => {
+                state.currentEntry.date = e.target.value;
+                // Sadece input alanını güncelle, renderApp'i çağırmaya gerek yok.
+            };
+
+            // Günlük ücret inputu değiştiğinde state'i güncelle
+            dailyWageInput.oninput = (e) => {
+                state.dailyWageInput = e.target.value;
+            };
+
+            // Buton event listener'ları
+            document.getElementById('save-wage-button').onclick = saveDailyWage;
+            document.getElementById('add-entry-button').onclick = addEntry;
+
+            // Uygulamayı başlat
+            initFirebase();
+            renderApp();
+        });
+        
+    </script>
+</body>
+</html>
